@@ -11,6 +11,12 @@ function App() {
   const [limpiezaLogs, setLimpiezaLogs] = useState('');
   const [trainMessage, setTrainMessage] = useState('');
 
+  // estados para hiperparametros
+  const [learningRate, setLearningRate] = useState(0.01);
+  const [maxIterations, setMaxIterations] = useState(1000);
+  const [regularization, setRegularization] = useState(0.01);
+  const [trainingLogs, setTrainingLogs] = useState('');
+
   const handleFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -178,11 +184,145 @@ function App() {
         );
       case 'ajustes':
         return (
-          <div className="tab-view text-center p-4 w-100">
-            <h4 className="mb-4 text-dark">Ajustes</h4>
-            <div className="mt-4">
-              <div className="card mx-auto" style={{maxWidth: '600px'}}>
-                <div className="card-body">
+          <div className="tab-view p-4 w-100">
+            <h2 className="mb-5 text-center text-dark" style={{fontWeight: 'bold'}}>Ajuste de Hiperparámetros</h2>
+            <div className="d-flex flex-column flex-lg-row justify-content-center align-items-start gap-4" style={{maxWidth: '1200px', margin: '0 auto'}}>
+              {/* Panel de controles */}
+              <div className="card shadow-lg" style={{flex: '1', minWidth: '320px', maxWidth: '500px'}}>
+                <div className="card-body p-4">
+                  <h5 className="card-title mb-4 text-center" style={{color: '#007bff', fontWeight: 'bold'}}>Configuración del Modelo</h5>
+                  
+                  {/* Learning Rate */}
+                  <div className="mb-4">
+                    <label className="form-label d-flex justify-content-between">
+                      <span style={{fontWeight: '600'}}>Learning Rate (Tasa de Aprendizaje)</span>
+                      <span className="badge bg-primary">{learningRate.toFixed(4)}</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      className="form-range" 
+                      min="0.0001" 
+                      max="0.1" 
+                      step="0.0001"
+                      value={learningRate}
+                      onChange={(e) => setLearningRate(parseFloat(e.target.value))}
+                    />
+                    <div className="d-flex justify-content-between mt-1">
+                      <small className="text-muted">0.0001</small>
+                      <small className="text-muted">0.1</small>
+                    </div>
+                    <small className="text-muted">Controla qué tan rápido aprende el modelo. Valores bajos: más lento pero estable.</small>
+                  </div>
+
+                  {/* Max Iterations */}
+                  <div className="mb-4">
+                    <label className="form-label d-flex justify-content-between">
+                      <span style={{fontWeight: '600'}}>Iteraciones Máximas</span>
+                      <span className="badge bg-success">{maxIterations}</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      className="form-range" 
+                      min="100" 
+                      max="5000" 
+                      step="100"
+                      value={maxIterations}
+                      onChange={(e) => setMaxIterations(parseInt(e.target.value))}
+                    />
+                    <div className="d-flex justify-content-between mt-1">
+                      <small className="text-muted">100</small>
+                      <small className="text-muted">5000</small>
+                    </div>
+                    <small className="text-muted">Número de veces que el modelo ajusta sus pesos durante el entrenamiento.</small>
+                  </div>
+
+                  {/* Regularization */}
+                  <div className="mb-4">
+                    <label className="form-label d-flex justify-content-between">
+                      <span style={{fontWeight: '600'}}>Regularización (L2)</span>
+                      <span className="badge bg-warning">{regularization.toFixed(4)}</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      className="form-range" 
+                      min="0" 
+                      max="0.5" 
+                      step="0.001"
+                      value={regularization}
+                      onChange={(e) => setRegularization(parseFloat(e.target.value))}
+                    />
+                    <div className="d-flex justify-content-between mt-1">
+                      <small className="text-muted">0.0</small>
+                      <small className="text-muted">0.5</small>
+                    </div>
+                    <small className="text-muted">Previene el sobreajuste. Valores altos: modelo más simple pero robusto.</small>
+                  </div>
+
+                  <hr className="my-4" />
+
+                  {/* Botones */}
+                  <div className="d-flex gap-2">
+                    <button 
+                      className="btn btn-primary flex-fill py-2" 
+                      style={{fontWeight: 'bold'}}
+                      onClick={async () => {
+                        setTrainingLogs('Iniciando entrenamiento con hiperparámetros personalizados...\n');
+                        try {
+                          const resp = await fetch('http://localhost:5000/modelo/entrenar', { 
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                              learning_rate: learningRate,
+                              max_iterations: maxIterations,
+                              regularization: regularization
+                            })
+                          });
+                          const body = await resp.json();
+                          if (!resp.ok) {
+                            setTrainingLogs(prev => prev + `ERROR: ${body.error || 'Error al entrenar'}\n`);
+                            return;
+                          }
+                          if (body.logs && Array.isArray(body.logs)) {
+                            body.logs.forEach((ln) => {
+                              setTrainingLogs(prev => prev + ln + '\n');
+                            });
+                          }
+                          setTrainingLogs(prev => prev + '\n✓ Entrenamiento completado exitosamente!\n');
+                        } catch (err) {
+                          setTrainingLogs(prev => prev + 'ERROR: No se pudo conectar con el servidor\n');
+                        }
+                      }}
+                    >
+                       Entrenar Modelo
+                    </button>
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{fontWeight: 'bold'}}
+                      onClick={() => {
+                        setLearningRate(0.01);
+                        setMaxIterations(1000);
+                        setRegularization(0.01);
+                        setTrainingLogs('');
+                      }}
+                    >
+                      Restaurar
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel de logs */}
+              <div className="card shadow-lg" style={{flex: '1', minWidth: '320px'}}>
+                <div className="card-body p-4">
+                  <h5 className="card-title mb-3 text-center" style={{color: '#28a745', fontWeight: 'bold'}}>Registro de Entrenamiento</h5>
+                  <textarea 
+                    className="form-control font-monospace" 
+                    rows={22} 
+                    value={trainingLogs} 
+                    readOnly 
+                    style={{fontSize: '0.9rem', backgroundColor: '#f8f9fa', resize: 'none'}}
+                    placeholder="Los logs del entrenamiento aparecerán aquí...\n\n• Ajusta los hiperparámetros usando los controles\n• Presiona 'Entrenar Modelo' para comenzar\n• Observa el progreso en tiempo real"
+                  />
                 </div>
               </div>
             </div>

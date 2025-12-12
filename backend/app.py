@@ -81,6 +81,7 @@ def limpieza_de_datos():
 def entrenar_modelo():
     """
     entrena el modelo studentguard usando implementacion propia
+    recibe hiperparametros dinamicos desde el frontend
     """
     global procesador, entrenador
     
@@ -88,19 +89,26 @@ def entrenar_modelo():
         return jsonify({'error': 'no hay datos limpios, ejecuta limpieza primero'}), 404
     
     try:
+        # obtener hiperparametros del request (con valores por defecto)
+        datos_request = request.get_json() if request.is_json else {}
+        learning_rate = datos_request.get('learning_rate', 0.01)
+        max_iterations = datos_request.get('max_iterations', 1000)
+        regularization = datos_request.get('regularization', 0.01)
+        
         registros = ['iniciando entrenamiento del modelo studentguard...']
+        registros.append(f'hiperparametros: learning_rate={learning_rate}, max_iterations={max_iterations}, regularization={regularization}')
         
         # preparar datos para entrenamiento
         registros.append('preparando datos para entrenamiento...')
         info_preparacion = entrenador.preparar_datos(procesador.datos_limpios)
         registros.append(f"datos preparados: {info_preparacion['train_samples']} entrenamiento, {info_preparacion['test_samples']} prueba")
         
-        # entrenar modelo
+        # entrenar modelo con parametros personalizados
         registros.append('entrenando modelo studentguard (implementacion propia)...')
         info_modelo = entrenador.entrenar(
-            learning_rate=0.01,
-            max_iterations=1000,
-            regularization=0.01
+            learning_rate=learning_rate,
+            max_iterations=max_iterations,
+            regularization=regularization
         )
         registros.append('entrenamiento completado!')
         
