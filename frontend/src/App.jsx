@@ -17,6 +17,98 @@ function App() {
   const [regularization, setRegularization] = useState(0.01);
   const [trainingLogs, setTrainingLogs] = useState('');
 
+  // estados para prediccion individual
+  const [formPrediccion, setFormPrediccion] = useState({
+    promedio_actual: '',
+    asistencia_clases: '',
+    tareas_entregadas: '',
+    participacion_clase: '',
+    horas_estudio: '',
+    promedio_evaluaciones: '',
+    cursos_reprobados: '',
+    actividades_extracurriculares: '',
+    reportes_disciplinarios: ''
+  });
+  const [resultadoPrediccion, setResultadoPrediccion] = useState(null);
+  const [cargandoPrediccion, setCargandoPrediccion] = useState(false);
+  const [errorPrediccion, setErrorPrediccion] = useState('');
+
+  // funcion para manejar cambios en el formulario de prediccion
+  const handleInputPrediccion = (campo, valor) => {
+    setFormPrediccion(prev => ({ ...prev, [campo]: valor }));
+    setErrorPrediccion('');
+  };
+
+  // funcion para limpiar formulario de prediccion
+  const limpiarFormPrediccion = () => {
+    setFormPrediccion({
+      promedio_actual: '',
+      asistencia_clases: '',
+      tareas_entregadas: '',
+      participacion_clase: '',
+      horas_estudio: '',
+      promedio_evaluaciones: '',
+      cursos_reprobados: '',
+      actividades_extracurriculares: '',
+      reportes_disciplinarios: ''
+    });
+    setResultadoPrediccion(null);
+    setErrorPrediccion('');
+  };
+
+  // funcion para realizar prediccion
+  const realizarPrediccion = async () => {
+    setErrorPrediccion('');
+    setResultadoPrediccion(null);
+    
+    // validar que todos los campos esten llenos
+    const camposVacios = Object.entries(formPrediccion).filter(([_, v]) => v === '' || v === null);
+    if (camposVacios.length > 0) {
+      setErrorPrediccion('Por favor, completa todos los campos del formulario.');
+      return;
+    }
+
+    // convertir valores a numeros
+    const datosNumericos = {};
+    for (const [campo, valor] of Object.entries(formPrediccion)) {
+      const num = parseFloat(valor);
+      if (isNaN(num)) {
+        setErrorPrediccion(`El campo "${campo.replace(/_/g, ' ')}" debe ser un número válido.`);
+        return;
+      }
+      datosNumericos[campo] = num;
+    }
+
+    // validaciones de rango
+    if (datosNumericos.asistencia_clases < 0 || datosNumericos.asistencia_clases > 100) {
+      setErrorPrediccion('Asistencia a clases debe estar entre 0 y 100.');
+      return;
+    }
+    if (datosNumericos.tareas_entregadas < 0 || datosNumericos.tareas_entregadas > 100) {
+      setErrorPrediccion('Tareas entregadas debe estar entre 0 y 100.');
+      return;
+    }
+
+    setCargandoPrediccion(true);
+    try {
+      const resp = await fetch('http://localhost:5000/modelo/predecir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosNumericos)
+      });
+      const data = await resp.json();
+      
+      if (!resp.ok) {
+        setErrorPrediccion(data.error || 'Error al realizar la predicción');
+      } else {
+        setResultadoPrediccion(data);
+      }
+    } catch (err) {
+      setErrorPrediccion('Error de conexión con el servidor. Verifica que el backend esté corriendo.');
+    }
+    setCargandoPrediccion(false);
+  };
+
   const handleFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -287,7 +379,7 @@ function App() {
                               setTrainingLogs(prev => prev + ln + '\n');
                             });
                           }
-                          setTrainingLogs(prev => prev + '\n✓ Entrenamiento completado exitosamente!\n');
+                          setTrainingLogs(prev => prev + '\nEntrenamiento completado exitosamente!\n');
                         } catch (err) {
                           setTrainingLogs(prev => prev + 'ERROR: No se pudo conectar con el servidor\n');
                         }
@@ -376,58 +468,271 @@ function App() {
         );
       case 'prediccion':
         return (
-          <div className="tab-view p-4 w-100 d-flex flex-column align-items-center justify-content-center" style={{minHeight: '80vh'}}>
-            <h2 className="mb-4 text-dark" style={{fontWeight: 'bold', letterSpacing: '1px'}}>Prediccion de Riesgo</h2>
-            <div className="d-flex flex-column flex-lg-row align-items-start justify-content-center w-100" style={{gap: '48px'}}>
-              <form className="prediction-form p-4 rounded shadow-lg" style={{minWidth: '340px', maxWidth: '420px', width: '100%'}}>
-                <div className="row g-3 mb-2">
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Promedio actual" />
+          <div className="tab-view p-4 w-100">
+            <h2 className="mb-4 text-center text-dark" style={{fontWeight: 'bold'}}>Predicción de Riesgo Académico</h2>
+            <p className="text-center text-muted mb-4">Ingresa los datos del estudiante para predecir su nivel de riesgo de deserción</p>
+            
+            <div className="d-flex flex-column flex-lg-row justify-content-center align-items-start gap-4" style={{maxWidth: '1100px', margin: '0 auto'}}>
+              {/* Formulario de prediccion */}
+              <div className="card shadow-lg" style={{flex: '1', minWidth: '400px', maxWidth: '550px'}}>
+                <div className="card-body p-4">
+                  <h5 className="card-title mb-4 text-center" style={{color: '#007bff', fontWeight: 'bold'}}>
+                    Datos del Estudiante
+                  </h5>
+                  
+                  {errorPrediccion && (
+                    <div className="alert alert-danger py-2 mb-3" role="alert">
+                      {errorPrediccion}
+                    </div>
+                  )}
+                  
+                  <div className="row g-3">
+                    {/* Promedio Actual */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Promedio Actual</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Ej: 75.5"
+                        value={formPrediccion.promedio_actual}
+                        onChange={(e) => handleInputPrediccion('promedio_actual', e.target.value)}
+                        min="0" max="100" step="0.1"
+                      />
+                    </div>
+                    
+                    {/* Asistencia */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Asistencia a Clases (%)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="0 - 100"
+                        value={formPrediccion.asistencia_clases}
+                        onChange={(e) => handleInputPrediccion('asistencia_clases', e.target.value)}
+                        min="0" max="100"
+                      />
+                    </div>
+                    
+                    {/* Tareas Entregadas */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Tareas Entregadas (%)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="0 - 100"
+                        value={formPrediccion.tareas_entregadas}
+                        onChange={(e) => handleInputPrediccion('tareas_entregadas', e.target.value)}
+                        min="0" max="100"
+                      />
+                    </div>
+                    
+                    {/* Participacion */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Participación en Clase (%)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="0 - 100"
+                        value={formPrediccion.participacion_clase}
+                        onChange={(e) => handleInputPrediccion('participacion_clase', e.target.value)}
+                        min="0" max="100"
+                      />
+                    </div>
+                    
+                    {/* Horas de Estudio */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Horas de Estudio (semanal)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Ej: 10"
+                        value={formPrediccion.horas_estudio}
+                        onChange={(e) => handleInputPrediccion('horas_estudio', e.target.value)}
+                        min="0"
+                      />
+                    </div>
+                    
+                    {/* Promedio Evaluaciones */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Promedio Evaluaciones</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Ej: 70"
+                        value={formPrediccion.promedio_evaluaciones}
+                        onChange={(e) => handleInputPrediccion('promedio_evaluaciones', e.target.value)}
+                        min="0" max="100" step="0.1"
+                      />
+                    </div>
+                    
+                    {/* Cursos Reprobados */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Cursos Reprobados</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Ej: 2"
+                        value={formPrediccion.cursos_reprobados}
+                        onChange={(e) => handleInputPrediccion('cursos_reprobados', e.target.value)}
+                        min="0"
+                      />
+                    </div>
+                    
+                    {/* Actividades Extracurriculares */}
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Actividades Extracurriculares</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Cantidad"
+                        value={formPrediccion.actividades_extracurriculares}
+                        onChange={(e) => handleInputPrediccion('actividades_extracurriculares', e.target.value)}
+                        min="0"
+                      />
+                    </div>
+                    
+                    {/* Reportes Disciplinarios */}
+                    <div className="col-12">
+                      <label className="form-label fw-semibold">Reportes Disciplinarios</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        placeholder="Cantidad de reportes"
+                        value={formPrediccion.reportes_disciplinarios}
+                        onChange={(e) => handleInputPrediccion('reportes_disciplinarios', e.target.value)}
+                        min="0"
+                      />
+                    </div>
                   </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Asistencia a clases" />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Tareas entregadas" />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Participacion en clase" />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Horas de estudio" />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Actividades extracurriculares" />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Cursos reprobados" />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <input type="text" className="form-control form-control-lg" placeholder="Reportes disciplinarios" />
+                  
+                  <hr className="my-4" />
+                  
+                  <div className="d-flex gap-2">
+                    <button 
+                      type="button" 
+                      className="btn btn-primary flex-fill py-2"
+                      style={{fontWeight: 'bold'}}
+                      onClick={realizarPrediccion}
+                      disabled={cargandoPrediccion}
+                    >
+                      {cargandoPrediccion ? (
+                        <><span className="spinner-border spinner-border-sm me-2"></span>Procesando...</>
+                      ) : (
+                        <>Predecir Riesgo</>
+                      )}
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary py-2"
+                      style={{fontWeight: 'bold'}}
+                      onClick={limpiarFormPrediccion}
+                    >
+                      Limpiar
+                    </button>
                   </div>
                 </div>
-                <hr className="my-3" />
-                <div className="d-flex justify-content-center gap-3">
-                  <button type="button" className="btn btn-dark px-4 py-2" style={{fontWeight: 'bold', fontSize: '1.1rem'}}>Predecir</button>
-                  <button type="button" className="btn btn-secondary px-4 py-2" style={{fontWeight: 'bold', fontSize: '1.1rem'}}>Cancelar</button>
+              </div>
+              
+              {/* Panel de resultado */}
+              <div className="card shadow-lg" style={{flex: '0 0 320px', minHeight: '400px'}}>
+                <div className="card-body p-4 d-flex flex-column align-items-center justify-content-center">
+                  <h5 className="card-title mb-4 text-center" style={{fontWeight: 'bold'}}>Resultado</h5>
+                  
+                  {!resultadoPrediccion && !cargandoPrediccion && (
+                    <div className="text-center text-muted">
+                      <div style={{fontSize: '4rem', opacity: 0.3}}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" viewBox="0 0 16 16">
+                          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                          <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/>
+                        </svg>
+                      </div>
+                      <p>Ingresa los datos del estudiante y presiona "Predecir" para ver el resultado</p>
+                    </div>
+                  )}
+                  
+                  {cargandoPrediccion && (
+                    <div className="text-center">
+                      <div className="spinner-border text-primary" style={{width: '3rem', height: '3rem'}}></div>
+                      <p className="mt-3">Analizando datos...</p>
+                    </div>
+                  )}
+                  
+                  {resultadoPrediccion && (
+                    <div className="text-center w-100">
+                      {/* Icono y color segun riesgo */}
+                      <div 
+                        className="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
+                        style={{
+                          width: '120px', 
+                          height: '120px',
+                          backgroundColor: 
+                            resultadoPrediccion.riesgo === 'alto' ? '#dc3545' :
+                            resultadoPrediccion.riesgo === 'medio' ? '#ffc107' : '#28a745',
+                          boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                        }}
+                      >
+                        <span style={{fontSize: '3.5rem', color: '#fff'}}>
+                          {resultadoPrediccion.riesgo === 'alto' ? '!' :
+                           resultadoPrediccion.riesgo === 'medio' ? '~' : '+'}
+                        </span>
+                      </div>
+                      
+                      {/* Nivel de riesgo */}
+                      <h3 
+                        className="mb-2"
+                        style={{
+                          color: 
+                            resultadoPrediccion.riesgo === 'alto' ? '#dc3545' :
+                            resultadoPrediccion.riesgo === 'medio' ? '#856404' : '#28a745',
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase'
+                        }}
+                      >
+                        Riesgo {resultadoPrediccion.riesgo}
+                      </h3>
+                      
+                      {/* Confianza */}
+                      <p className="mb-3" style={{fontSize: '1.1rem'}}>
+                        Confianza: <strong>{(resultadoPrediccion.confianza * 100).toFixed(1)}%</strong>
+                      </p>
+                      
+                      {/* Barra de confianza */}
+                      <div className="progress mb-4" style={{height: '10px'}}>
+                        <div 
+                          className="progress-bar" 
+                          role="progressbar" 
+                          style={{
+                            width: `${resultadoPrediccion.confianza * 100}%`,
+                            backgroundColor: 
+                              resultadoPrediccion.riesgo === 'alto' ? '#dc3545' :
+                              resultadoPrediccion.riesgo === 'medio' ? '#ffc107' : '#28a745'
+                          }}
+                        ></div>
+                      </div>
+                      
+                      {/* Mensaje segun riesgo */}
+                      <div 
+                        className="alert py-2"
+                        style={{
+                          backgroundColor: 
+                            resultadoPrediccion.riesgo === 'alto' ? '#f8d7da' :
+                            resultadoPrediccion.riesgo === 'medio' ? '#fff3cd' : '#d4edda',
+                          border: 'none'
+                        }}
+                      >
+                        {resultadoPrediccion.riesgo === 'alto' && (
+                          <small><strong>Acción requerida:</strong> Este estudiante necesita intervención inmediata.</small>
+                        )}
+                        {resultadoPrediccion.riesgo === 'medio' && (
+                          <small><strong>Atención:</strong> Monitorear de cerca el progreso del estudiante.</small>
+                        )}
+                        {resultadoPrediccion.riesgo === 'bajo' && (
+                          <small><strong>Buen estado:</strong> El estudiante muestra un buen desempeño académico.</small>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </form>
-              <div className="result-area d-flex flex-column align-items-center justify-content-center p-5 rounded shadow-lg" style={{minWidth: '260px', minHeight: '260px'}}>
-                <div className="mb-3" style={{fontSize: '4rem'}}>
-                  <span style={{marginRight: '16px'}}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="#222" viewBox="0 0 16 16">
-                      <path d="M6.956 1.745C7.021.81 7.908.081 8.864.325l.088.02c.98.245 1.712 1.07 1.646 2.005l-.345 4.708a.5.5 0 0 1-.5.462h-2.5a.5.5 0 0 1-.5-.462L6.956 1.745z"/>
-                      <path d="M4.5 8.5A.5.5 0 0 1 5 8h6a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5v-.5z"/>
-                    </svg>
-                  </span>
-                  <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="#222" viewBox="0 0 16 16">
-                      <path d="M9.044 14.255c-.065.935-.952 1.664-1.908 1.419l-.088-.02c-.98-.245-1.712-1.07-1.646-2.005l.345-4.708a.5.5 0 0 1 .5-.462h2.5a.5.5 0 0 1 .5.462l-.345 4.708z"/>
-                      <path d="M11.5 7.5a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v.5z"/>
-                    </svg>
-                  </span>
-                </div>
-                <div style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#222'}}>Resultado</div>
               </div>
             </div>
           </div>
